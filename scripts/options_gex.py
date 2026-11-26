@@ -9,7 +9,7 @@ scripts/fetch.py 다음에 GitHub Actions 에서 실행된다.
 - 행사가별 GEX = 감마 × OI × 100 × 현재가² × 0.01  (현재가 1% 움직일 때 딜러 헤지 달러 규모)
   콜은 +, 풋은 − 로 더한다.
 - 플립 = 가격을 위아래로 옮겨 가며 전체 넷감마를 다시 계산했을 때 부호가 바뀌는 가격(현재가에 가장 가까운 것).
-- 콜월 = 콜 GEX 최대 행사가, 풋월 = 풋 GEX(절대값) 최대 행사가.
+- 콜월 = 현재가 위에서 넷감마가 가장 큰 행사가, 풋월 = 현재가 아래에서 넷감마가 가장 작은(음수 최대) 행사가.
 - OI 는 거래소가 장 시작 전에 갱신하므로 "전 거래일 장 시작 시점" 물량이다.
 사이트(firmtape, OptionCharts)마다 가정이 달라 플립이 1~2달러 차이 날 수 있다.
 """
@@ -83,7 +83,7 @@ def gex_at(chain: pd.DataFrame, S) -> np.ndarray:
 
 
 def find_flip(chain: pd.DataFrame, spot: float):
-    grid = np.linspace(spot * 0.7, spot * 1.3, 601)
+    grid = np.linspace(spot * 0.5, spot * 1.5, 1001)
     tot = gex_at(chain, grid)
     s = np.sign(tot)
     idx = np.where(s[:-1] * s[1:] < 0)[0]
@@ -122,8 +122,11 @@ def analyze(chain: pd.DataFrame, spot: float, label: str) -> dict:
     oi = ch.groupby(["strike", "side"])["oi"].sum().unstack(fill_value=0.0)
     net_total = float(by["net"].sum())
     flip = find_flip(ch, spot)
-    call_wall = float(by["C"].idxmax()) if by["C"].max() > 0 else None
-    put_wall = float(by["P"].idxmin()) if by["P"].min() < 0 else None
+    # 콜월 = 현재가 위 넷감마 최대(저항·목표), 풋월 = 현재가 아래 넷감마 최소(지지·손절 기준)
+    up_net = by[by.index >= spot]["net"]
+    dn_net = by[by.index <= spot]["net"]
+    call_wall = float(up_net.idxmax()) if len(up_net) and up_net.max() > 0 else None
+    put_wall = float(dn_net.idxmin()) if len(dn_net) and dn_net.min() < 0 else None
 
     def top(series, n, asc=False):
         s = series.sort_values(ascending=asc).head(n)
