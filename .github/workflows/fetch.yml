@@ -19,6 +19,9 @@ jobs:
           python-version: "3.12"
       - run: pip install yfinance pandas numpy
       - run: python scripts/fetch.py
+      - name: 옵션 감마(GEX) 계산
+        run: python scripts/options_gex.py
+        continue-on-error: true
       - name: 저장
         run: |
           git config user.name "market-data-bot"
